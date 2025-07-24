@@ -1,73 +1,190 @@
-# AWS Access Management
+# Secure AWS Access Management with Granted + GitHub OIDC
 
-This mini project demonstrates how to securely manage AWS access using two professional approaches:
+This guide walks through setting up a **secure, role-based AWS access system** using two key components:
 
-1. **Developer CLI Access** using [Granted](https://github.com/common-fate/granted)
-2. **CI/CD Pipeline Access** via [GitHub Actions OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html)
-
-Both flows are implemented and documented with Terraform, IAM best practices, and GitHub Actions.
-
----
-
-## 📁 Structure
-
-```
-aws-access-management/
-├── README.md                      # High-level explanation (this file)
-├── .gitignore
-├── granted/                      # For local developer role assumption
-│   ├── terraform/
-│   │   └── iam-role.tf           # IAM role and trust policy for CLI access
-│   └── docs/
-│       └── granted-setup.md      # Setup instructions with Granted and ~/.aws/config
-├── oidc-ci/                      # For GitHub OIDC-based CI/CD role assumption
-│   ├── terraform/
-│   │   └── oidc-role.tf          # OIDC IAM role + trust + permissions
-│   ├── .github/
-│   │   └── workflows/
-│   │       └── deploy.yml        # Example Terraform-based GitHub workflow
-│   └── docs/
-│       └── oidc-setup.md         # Manual + Terraform OIDC trust walkthrough
-```
-
----
-
-## 🚀 Components
-
-### 🔐 1. Developer CLI Access (Granted)
-- Long-lived IAM user with no direct permissions
-- IAM role with admin access
-- Role trusted only by the IAM user
-- Granted CLI + `assume -c` launches secure sessions
-
-### 🤖 2. GitHub OIDC Access
-- GitHub Actions assumes IAM role using identity token
-- Role trusted only by `repo:<owner>/<repo>:*`
-- Used for Terraform deployments without storing AWS secrets
-
----
-
-## 📸 Screenshots
-Throughout the setup, you’ll be prompted to take screenshots of:
-- IAM Role trust policy for Granted
-- ~/.aws/config showing Granted profile
-- IAM Role trust policy for OIDC
-- GitHub Actions `assume` job with successful AWS auth
-
-These will be embedded in the respective setup guides.
+1. **Granted** – for secure, short-lived access via IAM roles
+2. **GitHub Actions + OIDC** – for CI/CD deployments with no stored credentials
 
 ---
 
 ## 📦 Prerequisites
-- AWS account with root access to set up IAM
-- Terraform CLI
-- Granted CLI (`brew install granted`)
-- GitHub repo created and connected
-- GitHub Actions enabled
+
+Before starting, make sure you have the following installed:
+
+### 🧰 CLI Tools
+
+* **[Terraform](https://developer.hashicorp.com/terraform/downloads)**
+
+  ```bash
+  brew tap hashicorp/tap
+  brew install hashicorp/tap/terraform
+  ```
+
+* **[Granted](https://docs.commonfate.io/granted/getting-started/)**
+
+  ```bash
+  brew install common-fate/granted/granted
+  granted doctor  # Verify installation
+  ```
+
+* **AWS CLI**
+
+  ```bash
+  brew install awscli
+  ```
+
+These tools are used throughout the setup and should be available in your `$PATH`.
 
 ---
 
-## ✅ Outcomes
-- Clear split between dev and CI identity
-- Secure, minimal, credential-less GitHub deployments
-- Professional access strategy for personal or team projects
+## 📁 Project Structure
+
+```
+.
+├── README.md  👈 this file
+├── assets/                   # Screenshots
+├── granted/
+│   ├── terraform/            # Terraform for user IAM role
+├── oidc-ci/
+│   ├── terraform/            # Terraform for GitHub OIDC role
+│   ├── deploy/               # Terraform for GitHub workflow deployment
+└── .github/workflows/
+    └── deploy.yml            # GitHub Actions CI/CD workflow
+```
+
+---
+
+## ✅ Overview of Steps
+
+| Stage             | What You Do                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
+| 🧱 Bootstrap      | Create an IAM user with Admin access to deploy initial roles                |
+| 🏗️ Granted Setup | Use Terraform to create a role for local dev access via `assume`            |
+| 🔐 Permissions Tapering | Reduce permissions             |
+| 🚀 OIDC Setup     | Use Terraform to create a GitHub-deployable IAM role via OIDC               |
+| ⚙️ CI/CD          | Add a GitHub Actions workflow using `configure-aws-credentials` + Terraform |
+
+---
+
+## 🧱 1. Bootstrap IAM Setup (One-Time Manual Step)
+
+> 👇 This step is temporary and should **NOT** remain long-term. It's only needed to deploy the first IAM role.
+
+1. **Login as the AWS root user or a user with sufficient permissions**
+2. Create an IAM user:
+
+   * Name: `granted-user`
+   * Permissions: `AdministratorAccess`
+   * Access type: Programmatic access
+
+![IAM User Creation](./assets/granted_user.png)
+
+3. Run locally:
+
+```bash
+aws configure --profile granted-user
+```
+
+---
+
+## 🛠️ 2. Deploy Granted Role via Terraform
+
+```bash
+cd granted/terraform
+```
+
+### 🔐 secrets.tfvars (Not committed)
+
+```hcl
+account_id = "123456789012"
+granted_iam_user = "granted-user"
+```
+
+### ✅ Run
+
+```bash
+terraform init
+terraform apply -var-file="secrets.tfvars"
+```
+
+This creates:
+
+* A new IAM role: `granted-admin-role`
+* A trust policy allowing assumption by your IAM user
+
+### ✅ Use Granted to Assume Role
+
+```bash
+assume <name of role>
+```
+
+![Granted Login](./assets/assume_role.png)
+
+---
+
+## 🔐 3. Harden Account
+
+Once Granted works:
+
+* Remove the IAM user's `AdministratorAccess`
+* Restrict it to only `sts:AssumeRole` to the granted role
+
+Now the granted role can be used for further terraform deployments.
+
+---
+
+## ☁️ 4. Set Up OIDC IAM Role for GitHub
+
+Once you've assumed the `granted-admin-role` using Granted:
+
+```bash
+assume <name of role>
+```
+
+Navigate to the OIDC Terraform directory:
+
+### 🔐 secrets.tfvars (Not committed)
+
+```hcl
+aws_account_id = "123456789012"
+github_repo    = "github-user/repo-name"
+```
+Then run:
+
+```bash
+terraform init
+terraform apply -var-file="secrets.tfvars"
+```
+
+This will:
+
+* Deploy the **GitHub OIDC provider** (if not already present)
+* Create the `github-deploy-role` with trust configuration for GitHub Actions
+
+> 💡 You’ll see a confirmation of the role and trust policy being created in your terminal output
+
+![GitHub OIDC](./assets/id_provider.png)
+
+
+---
+
+## 🤖 5. GitHub Actions Workflow: `deploy.yml`
+
+Once the `github-deploy-role` is deployed, simply **push your repo to GitHub** to trigger the OIDC-based workflow.
+
+✅ Just ensure that your GitHub repository has the following secret configured:
+
+* `AWS_ACCOUNT_ID` → Your actual AWS account ID (e.g., `123456789012`)
+
+The workflow file already exists at:
+
+```
+.github/workflows/deploy.yml
+```
+
+It will:
+
+* Authenticate to AWS using OIDC
+* Run `terraform init`, `plan`, and `apply` on the OIDC role configuration
+
+> 💡 You can monitor the run in the GitHub Actions tab after pushing to `main`.
