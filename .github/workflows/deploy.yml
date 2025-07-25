@@ -2,15 +2,23 @@ name: OIDC Terraform Deploy Test
 
 on:
   workflow_dispatch:  # allows manual execution
-#   push:
-#     branches: [main] # allows push to main to trigger workflow
+  push:
+    branches: [main]  # allows push to main to trigger a no-op success check
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  terraform:
+  noop-on-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push Placeholder Check
+        run: echo "This is a no-op step to ensure successful workflow on push. Deployment is manual only."
+
+  deploy-terraform:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:

@@ -1,3 +1,6 @@
+<file name=0 path=/Users/luke/Desktop/Surf/aws-access-management/README.md><!-- GitHub Actions Status Badge -->
+![CI](https://github.com/L-Gardiner/aws-access-management/actions/workflows/deploy.yml/badge.svg)
+
 # Secure AWS Access Management with Granted + GitHub OIDC
 
 This guide walks through setting up a **secure, role-based AWS access system** using two key components:
@@ -169,6 +172,26 @@ This will:
 ---
 
 ## 🤖 5. GitHub Actions Workflow: `deploy.yml`
+
+> 🛠️ **Want to auto-deploy on every push?**  
+> To enable Terraform deployment on every push to `main`, simply change the section of the workflow file:
+>
+> ```yaml
+>   deploy-terraform:
+>     if: github.event_name == 'workflow_dispatch'
+>     runs-on: ubuntu-latest
+> ```
+> to:
+>
+> ```yaml
+>   deploy-terraform:
+>     if: github.event_name == 'push'
+>     runs-on: ubuntu-latest
+> ```
+>
+> This will cause the deployment job to run every time changes are pushed to the `main` branch.
+</file>
+
 
 Once the `github-deploy-role` is deployed, simply **push your repo to GitHub** to trigger the OIDC-based workflow.
 
