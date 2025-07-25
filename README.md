@@ -1,4 +1,3 @@
-<file name=0 path=/Users/luke/Desktop/Surf/aws-access-management/README.md><!-- GitHub Actions Status Badge -->
 ![CI](https://github.com/L-Gardiner/aws-access-management/actions/workflows/deploy.yml/badge.svg)
 
 # Secure AWS Access Management with Granted + GitHub OIDC
